@@ -148,6 +148,7 @@ public class PianoApplet extends Applet implements ActionListener,
       piano.assignVisual (visual);
 
       timer.scheduleAtFixedRate (new UpdateTask(), 0, 25);
+      piano.requestFocusInWindow ();
    }
 
    public void actionPerformed (ActionEvent event)

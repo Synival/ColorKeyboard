@@ -8,7 +8,7 @@ public class HelpDialog extends Dialog implements ActionListener
    {
       super (parent, "Help Me!", true);
 
-      this.setSize (400, 200);
+      this.setSize (500, 200);
       this.setResizable (false);
       this.setLayout (new FlowLayout());
 
