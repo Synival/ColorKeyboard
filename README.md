@@ -1,6 +1,6 @@
 # Color Keyboard Applet
 
-Video Demonstration:
+[Video Demonstration:](https://www.youtube.com/watch?v=Q_8vAX-Ko2c)
 
 [![Applet Screenshot](http://i.imgur.com/qvTcrJx.png)](https://www.youtube.com/watch?v=Q_8vAX-Ko2c)
 
