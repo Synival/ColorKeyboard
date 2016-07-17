@@ -1,10 +1,11 @@
+import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.applet.Applet;
 
-public class HelpDialog extends Dialog implements ActionListener
+public class HelpDialog extends JDialog implements ActionListener
 {
-   public HelpDialog (Frame parent, String text)
+   public HelpDialog (JFrame parent, String text)
    {
       super (parent, "Help Me!", true);
 
@@ -12,8 +13,7 @@ public class HelpDialog extends Dialog implements ActionListener
       this.setResizable (false);
       this.setLayout (new FlowLayout());
 
-      TextArea a = new TextArea (text, 6, 50,
-                                 TextArea.SCROLLBARS_VERTICAL_ONLY);
+      JTextArea a = new JTextArea (text, 6, 50);
       Button b = new Button ("OK");
 
       a.setEditable (false);
@@ -32,7 +32,7 @@ public class HelpDialog extends Dialog implements ActionListener
 
    public void actionPerformed (ActionEvent e)
    {
-      this.hide ();
+      this.setVisible (false);
       this.dispose ();
    }
 }

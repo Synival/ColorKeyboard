@@ -1,7 +1,10 @@
-import java.awt.*;
+import javax.swing.*;
 import java.util.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
 
-public class Visual extends Canvas
+public class Visual extends JPanel
 {
    public static final int DEFAULT_WIDTH = 100;
    public static final int DEFAULT_HEIGHT = 100;
@@ -52,10 +55,13 @@ public class Visual extends Canvas
 
       mainPoly = new VisualPoly (this, Color.black);
       setSize (getPreferredSize ());
+      setOpaque (true);
+      setBackground (Color.BLACK);
    }
 
    public void paint (Graphics g)
    {
+      super.paint (g);
       setBackground (averageColor().darker().darker());
 
       for (int i = 0; i < 256; i++)

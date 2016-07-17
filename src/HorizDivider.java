@@ -1,6 +1,7 @@
 import java.awt.*;
+import javax.swing.*;
 
-class HorizDivider extends Canvas
+class HorizDivider extends JComponent
 {
    public HorizDivider ()
    {

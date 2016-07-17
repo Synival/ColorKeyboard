@@ -1,4 +1,6 @@
-import java.awt.*;
+import javax.swing.*;
+import java.awt.Graphics;
+import java.awt.Color;
 
 public class Key
 {

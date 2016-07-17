@@ -1,10 +1,11 @@
+import javax.swing.*;
+import javax.sound.midi.*;
 import java.awt.*;
 import java.awt.event.*;
-import javax.sound.midi.*;
 import java.io.*;
 import java.util.*;
 
-public class Piano extends Canvas
+public class Piano extends JComponent
 {
    static public final int DEFAULT_LOW_WIDTH = 12;
    static public final int DEFAULT_LOW_HEIGHT = 30;
@@ -45,7 +46,7 @@ public class Piano extends Canvas
    private int highWidth, highHeight, highOffset;
    private int lowWidth, lowHeight;
 
-   private Timer timer = new Timer ();
+   private java.util.Timer timer = new java.util.Timer ();
 
    private Sequence sequence;
    private Track[] tracks;
@@ -483,23 +484,38 @@ public class Piano extends Canvas
                           throws InvalidKeyLayoutException
    {
       // TODO: throw exceptions for # of keys and lowest note
-
       if (!validKeyLayout (keyLayout))
          throw new InvalidKeyLayoutException ();
 
+      // Have we updated?
+      boolean update = false;
+      if (this.keys != keys || this.lowestNote != lowestNote)
+         update = true;
+
+      // Update internal variables.
       this.keyLayout = keyLayout;
       this.keys = keys;
       this.lowestNote = lowestNote;
 
+      // Rebuild keys and make sure key events are on.
       buildKeyTables ();
       enableEvents (AWTEvent.MOUSE_MOTION_EVENT_MASK |
                     AWTEvent.MOUSE_EVENT_MASK | AWTEvent.KEY_EVENT_MASK |
                     AWTEvent.FOCUS_EVENT_MASK);
 
+      // Resize, which will automatically repaint.  If there was no size
+      // change, make sure we update anyway.
+      Dimension oldSize = getSize ();
       setSize (getPreferredSize ());
 
-      if (getParent() != null)
-         getParent().doLayout ();
+      // If we've changed size, update the layout.
+      if (getSize().getWidth() != oldSize.getWidth()) {
+         if (getParent() != null)
+            getParent().doLayout ();
+      }
+      // Otherwise, if we updated, we haven't redrawn - make sure we do that.
+      else if (update)
+         repaint ();
    }
 
    public void assignKeymap (Keymap keymap)

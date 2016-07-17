@@ -1,10 +1,14 @@
+import javax.swing.*;
+import javax.swing.event.*;
+import java.applet.Applet;
+import java.awt.event.ActionListener;
+import java.awt.event.TextListener;
+import java.util.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.applet.Applet;
-import java.util.*;
+import java.awt.Color;
 
-public class PianoApplet extends Applet implements ActionListener,
-             TextListener
+public class PianoApplet extends Applet implements ActionListener
 {
    // Message displayed in 'help' menu.
    public static final String HELP_MESSAGE =
@@ -30,35 +34,35 @@ public class PianoApplet extends Applet implements ActionListener,
    "directories.";
 
    // Piano layout buttons.
-   private TextField layoutText        = new TextField ("121121211212");
-   private TextField transpositionText = new TextField ("21");
-   private Button rebuildButton        = new Button ("Rebuild Piano");
-   private Button standardButton       = new Button ("Standard");
-   private Button wholetoneButton      = new Button ("Wholetone");
+   private JTextField layoutText        = new JTextField ("121121211212", 10);
+   private JTextField transpositionText = new JTextField ("21", 2);
+   private JButton rebuildButton        = new JButton ("Rebuild Piano");
+   private JButton standardButton       = new JButton ("Standard");
+   private JButton wholetoneButton      = new JButton ("Wholetone");
 
    // Metronome.
-   private Button metronomeButton  = new Button ("Toggle");
-   private Label metronomeOnLabel  = new Label ("Off");
-   private TextField metronomeText = new TextField ("120");
-   private Metronome metronome     = new Metronome ();
+   private JButton metronomeButton  = new JButton ("Toggle");
+   private JLabel metronomeOnLabel  = new JLabel ("Off");
+   private JTextField metronomeText = new JTextField ("120", 3);
+   private Metronome metronome      = new Metronome ();
 
    // Instrument patch.
-   private TextField instrumentText = new TextField (3);
+   private JTextField instrumentText = new JTextField ("0", 3);
 
    // MIDI control.
-   private TextField midiText = new TextField ("87-15b.mid");
-   private Button playButton  = new Button ("Play");
-   private Button stopButton  = new Button ("Stop");
-   private Button helpButton  = new Button ("Help");
+   private JTextField midiText = new JTextField ("87-15b.mid", 12);
+   private JButton playButton  = new JButton ("Play");
+   private JButton stopButton  = new JButton ("Stop");
+   private JButton helpButton  = new JButton ("Help");
 
    // Visualizer.
-   private Visual visual  = new Visual (500, 200);
-   private Label hueLabel = new Label ("Hue: 360\u00b0");
-   private Label satLabel = new Label ("Saturation: 100%");
+   private Visual visual   = new Visual (500, 200);
+   private JLabel hueLabel = new JLabel ("Hue: 360\u00b0");
+   private JLabel satLabel = new JLabel ("Saturation: 100%");
 
    // Piano.
-   private Keymap keymap = new Keymap ();
-   private Timer timer   = new Timer ();
+   private Keymap keymap         = new Keymap ();
+   private java.util.Timer timer = new java.util.Timer ();
    private Piano piano; // (Initialized in constructor)
 
    // Visualizer statistics (hue/saturation) update routine.
@@ -101,26 +105,68 @@ public class PianoApplet extends Applet implements ActionListener,
       }
    }
 
+   public class TextChanged implements DocumentListener
+   {
+      private Object source = null;
+      public TextChanged (Object src)
+         { source = src; }
+
+      public void removeUpdate (DocumentEvent event)
+         { changedUpdate (event); }
+      public void insertUpdate (DocumentEvent event)
+         { changedUpdate (event); }
+
+      public void changedUpdate (DocumentEvent event)
+      {
+         // If we changed the metronome, update the value.
+         // Use 120 if the value entered is bogus.
+         if (source == metronomeText && metronome.isEnabled()) {
+            int bpm;
+            try {
+               bpm = Integer.parseInt (metronomeText.getText ());
+            }
+            catch (Exception e) {
+               bpm = 120;
+            }
+            metronome.enable (bpm);
+         }
+         // If the changed the instrument, update our piano's patch.
+         // Use 0 (accoustic grand piano) if the value entered is value.
+         else if (source == instrumentText) {
+            int instr;
+            try {
+               instr = Integer.parseInt (instrumentText.getText ());
+            }
+            catch (Exception e) {
+               instr = 0;
+            }
+            piano.setMidi (0, instr);
+         }
+      }
+   }
+
    public void init ()
    {
-      // Create the top row of controls.
-      add (new Label ("Key Layout: "));
-      add (layoutText);
-      add (new Label ("Lowest Note: "));
-      add (transpositionText);
-      add (rebuildButton);
-      add (new Label ("Preset Layouts: "));
+      // Preset keyboard layouts.
+      add (new JLabel ("Preset Layouts: "));
       add (standardButton);
       add (wholetoneButton);
       add (new HorizDivider());
 
+      // Custom keyboard layout.
+      add (new JLabel ("Key Layout: "));
+      add (layoutText);
+      add (new JLabel ("Lowest Note: "));
+      add (transpositionText);
+      add (rebuildButton);
+      add (new HorizDivider());
+
       // Add a metronome and instrument (MIDI patch) setting.
-      add (new Label ("Metronome: "));
+      add (new JLabel ("Metronome: "));
       add (metronomeOnLabel);
       add (metronomeText);
       add (metronomeButton);
-      add (new Label ("Instrument: "));
-      instrumentText.setText ("0");
+      add (new JLabel ("Instrument: "));
       add (instrumentText);
       add (new HorizDivider());
 
@@ -148,8 +194,10 @@ public class PianoApplet extends Applet implements ActionListener,
       playButton.addActionListener (this);
       stopButton.addActionListener (this);
       helpButton.addActionListener (this);
-      metronomeText.addTextListener (this);
-      instrumentText.addTextListener (this);
+      metronomeText.getDocument().addDocumentListener (
+         new TextChanged (metronomeText));
+      instrumentText.getDocument().addDocumentListener (
+         new TextChanged (instrumentText));
 
       // Create the piano and print any errors directly to the console.
       try {
@@ -239,42 +287,11 @@ public class PianoApplet extends Applet implements ActionListener,
       // Help window.
       else if (source == helpButton) {
          Container container = this.getParent();
-         while (!(container instanceof Frame))
+         while (!(container instanceof JFrame))
             container = container.getParent();
-         Frame parent = (Frame) container;
-
+         JFrame parent = (JFrame) container;
          HelpDialog d = new HelpDialog (parent, HELP_MESSAGE);
-         d.show ();
-      }
-   }
-
-   public void textValueChanged (TextEvent event)
-   {
-      Object source = event.getSource ();
-
-      // If we changed the metronome, update the value.
-      // Use 120 if the value entered is bogus.
-      if (event.getSource() == metronomeText && metronome.isEnabled()) {
-         int bpm;
-         try {
-            bpm = Integer.parseInt (metronomeText.getText ());
-         }
-         catch (Exception e) {
-            bpm = 120;
-         }
-         metronome.enable (bpm);
-      }
-      // If the changed the instrument, update our piano's patch.
-      // Use 0 (accoustic grand piano) if the value entered is value.
-      else if (event.getSource() == instrumentText) {
-         int instr;
-         try {
-            instr = Integer.parseInt (instrumentText.getText ());
-         }
-         catch (Exception e) {
-            instr = 0;
-         }
-         piano.setMidi (0, instr);
+         d.setVisible (true);
       }
    }
 }
