@@ -51,7 +51,7 @@ public class Key
       return false;
    }
 
-   public void paint (Graphics g)
+   public void paintComponent (Graphics g)
    {
       Color keyColor, borderColor;
 

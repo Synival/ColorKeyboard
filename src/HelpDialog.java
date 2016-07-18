@@ -3,36 +3,25 @@ import java.awt.*;
 import java.awt.event.*;
 import java.applet.Applet;
 
-public class HelpDialog extends JDialog implements ActionListener
+public class HelpDialog extends JDialog
 {
    public HelpDialog (JFrame parent, String text)
    {
       super (parent, "Help Me!", true);
-
-      this.setSize (500, 200);
-      this.setResizable (false);
       this.setLayout (new FlowLayout());
 
-      JTextArea a = new JTextArea (text, 6, 50);
-      Button b = new Button ("OK");
+      // Create our text.
+      JTextArea textarea = new JTextArea (text, 12, 50);
+      textarea.setWrapStyleWord (true);
+      textarea.setLineWrap (true);
+      textarea.setEditable (false);
 
-      a.setEditable (false);
-      b.addActionListener (this);
+      // Let it scroll.
+      JScrollPane scroll = new JScrollPane (textarea,
+         JScrollPane.VERTICAL_SCROLLBAR_ALWAYS,
+         JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
-      this.add (a);
-      this.add (new HorizDivider ());
-      this.add (b);
-
-      Dimension screenSize = this.getToolkit().getScreenSize();
-      Dimension size = this.getSize();
-
-      setLocation ((screenSize.width  - size.width) / 2,
-                   (screenSize.height - size.height) / 2);
-   }
-
-   public void actionPerformed (ActionEvent e)
-   {
-      this.setVisible (false);
-      this.dispose ();
+      // Add our scrollable text to the window.
+      this.add (scroll);
    }
 }

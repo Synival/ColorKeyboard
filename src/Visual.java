@@ -59,16 +59,16 @@ public class Visual extends JPanel
       setBackground (Color.BLACK);
    }
 
-   public void paint (Graphics g)
+   public void paintComponent (Graphics g)
    {
-      super.paint (g);
+      super.paintComponent (g);
       setBackground (averageColor().darker().darker());
 
       for (int i = 0; i < 256; i++)
          if (polyOn[i] > 0)
-            poly[i].paint (g);
+            poly[i].paintComponent (g);
 
-      mainPoly.paint (g);
+      mainPoly.paintComponent (g);
    }
 
    public int getWidth ()
@@ -226,7 +226,7 @@ class VisualPoly
       }
    }
 
-   public void paint (Graphics g)
+   public void paintComponent (Graphics g)
    {
       g.setColor (color);
 

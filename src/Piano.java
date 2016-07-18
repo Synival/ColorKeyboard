@@ -7,33 +7,42 @@ import java.util.*;
 
 public class Piano extends JComponent
 {
+   // Default key dimensions, in pixels.
    static public final int DEFAULT_LOW_WIDTH = 12;
    static public final int DEFAULT_LOW_HEIGHT = 30;
    static public final int DEFAULT_HIGH_WIDTH = 6;
    static public final int DEFAULT_HIGH_HEIGHT = 30;
    static public final int DEFAULT_HIGH_OFFSET = 9;
 
-   static public final int MOUSE_RELEASED = -1;
-   static public final int TRANSPOSE_DEFAULT = 36;
+   // Other default options.
+   static public final int DEFAULT_KEYS       = 88;
+   static public final int DEFAULT_LOWEST_KEY = 21;
+   static public final int DEFAULT_TRANSPOSE  = 36;
 
+   // Internal values and flags.
+   static public final int MOUSE_RELEASED = -1;
    static public final int MASK_MOUSE    = 1 << 0;
    static public final int MASK_KEYBOARD = 1 << 1;
    static public final int MASK_PLAYBACK = 1 << 2;
 
+   // MIDI information.
    private int channel;
    private int instrument;
    private MidiChannel[] mc;
    private Synthesizer synth;
    private Sequencer sequencer;
 
-   private int transpose = TRANSPOSE_DEFAULT;
+   // Performance settings.
+   private int transpose = DEFAULT_TRANSPOSE;
    private boolean pedal = false;
 
+   // Keyboard layout.
    private String keyLayout;
    private int keys;
    private int lowestNote;
    private Key[] keyTable;
 
+   // Computer keyboard mappings.
    private Keymap keymap;
    private boolean keymapAssigned = false;
 
@@ -59,8 +68,6 @@ public class Piano extends JComponent
       public void run ()
       {
          long curPos = sequencer.getTickPosition();
-         boolean doPaint = false;
-
          if (sequencer.isRunning() && sequence != null) {
             for (int i = 0; i < tracks.length; i++) {
                for (int j = trackEvent[i]; j < tracks[i].size(); j++) {
@@ -92,17 +99,10 @@ public class Piano extends JComponent
                            break;
                      }
                   }
-
-                  doPaint = true;
-
                   trackEvent[i] = j + 1;
                }
             }
-
-            //if (doPaint)
-               //repaint ();
          }
-
          if (visualAssigned) {
             visual.rebuildMainPoly ();
             visual.run ();
@@ -117,7 +117,7 @@ public class Piano extends JComponent
 
    public Piano (String keyLayout) throws InvalidKeyLayoutException
    {
-      this (keyLayout, 88, 21);
+      this (keyLayout, DEFAULT_KEYS, DEFAULT_LOWEST_KEY);
    }
 
    public Piano (String keyLayout, int keys, int lowestNote)
@@ -244,7 +244,7 @@ public class Piano extends JComponent
    public void paint (Graphics g)
    {
       for (int i = 0; i < keys; i++)
-         keyTable[i].paint (g);
+         keyTable[i].paintComponent (g);
    }
 
    public Dimension getPreferredSize() {
@@ -274,26 +274,27 @@ public class Piano extends JComponent
       if (!keymapAssigned)
          return;
 
+      // Does our key correspond to a keyboard tone?
       int tone = keymap.getTone (event.getKeyCode());
-
       if (tone >= 0) {
          tone += transpose;
-
          if (tone > 255 || tone < 0)
             return;
 
+         // Turn keys on/off.
          switch (event.getID()) {
             case KeyEvent.KEY_PRESSED:
                noteOn (tone, MASK_KEYBOARD);
                break;
-
             case KeyEvent.KEY_RELEASED:
                noteOff (tone, MASK_KEYBOARD);
                break;
          }
       }
+      // Not a tone - must be a special key.
       else if (event.getID() == KeyEvent.KEY_PRESSED) {
          switch (tone) {
+            // Pedal controls.
             case Keymap.KEY_PEDAL_ON:
                pedalOn ();
                break;
@@ -307,11 +308,14 @@ public class Piano extends JComponent
                   pedalOn ();
                break;
 
+            // Volume adjustment.
             case Keymap.KEY_VOLUME_UP:
             case Keymap.KEY_VOLUME_DOWN:
             case Keymap.KEY_VOLUME_DEFAULT:
                // TODO: write me!
+               break;
 
+            // Transposition.
             case Keymap.KEY_TRANSPOSE_UP:
                transpose++;
                break;
@@ -325,9 +329,10 @@ public class Piano extends JComponent
                transpose -= 12;
                break;
             case Keymap.KEY_TRANSPOSE_DEFAULT:
-               transpose = TRANSPOSE_DEFAULT;
+               transpose = DEFAULT_TRANSPOSE;
                break;
 
+            // Emergency button.
             case Keymap.KEY_ALL_NOTES_OFF:
                allNotesOff (255);
                break;
@@ -426,7 +431,7 @@ public class Piano extends JComponent
       if (keyMask[key] == 0) {
          try {
             keyTable[key - lowestNote].setPressed (true);
-            keyTable[key - lowestNote].paint (getGraphics());
+            keyTable[key - lowestNote].paintComponent (getGraphics());
          } catch (Exception e) { }
 
          if (sound)
@@ -448,7 +453,7 @@ public class Piano extends JComponent
       if (keyMask[key] == 0) {
          try {
             keyTable[key - lowestNote].setPressed (false);
-            keyTable[key - lowestNote].paint (getGraphics());
+            keyTable[key - lowestNote].paintComponent (getGraphics());
          } catch (Exception e) {
             System.out.println (e);
          }
@@ -471,7 +476,7 @@ public class Piano extends JComponent
          if ((keyMask[key] & mask) > 0) {
             try {
                keyTable[key - lowestNote].setPressed (false);
-               keyTable[key - lowestNote].paint (getGraphics());
+               keyTable[key - lowestNote].paintComponent (getGraphics());
             } catch (Exception e) {
                System.out.println (e);
             }
