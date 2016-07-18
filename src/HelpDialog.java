@@ -5,10 +5,11 @@ import java.applet.Applet;
 
 public class HelpDialog extends JDialog
 {
-   public HelpDialog (JFrame parent, String text)
+   public HelpDialog (Frame parent, String text)
    {
       super (parent, "Help Me!", true);
-      this.setLayout (new FlowLayout());
+      setLayout (new FlowLayout());
+      setResizable (false);
 
       // Create our text.
       JTextArea textarea = new JTextArea (text, 12, 50);

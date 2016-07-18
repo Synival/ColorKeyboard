@@ -298,10 +298,9 @@ public class PianoPanel extends JPanel implements ActionListener
       // Help window.
       else if (source == helpButton) {
          Container container = this.getParent();
-         while (!(container instanceof JFrame))
+         while (!(container instanceof Frame))
             container = container.getParent();
-         JFrame parent = (JFrame) container;
-         HelpDialog d = new HelpDialog (parent, HELP_MESSAGE);
+         HelpDialog d = new HelpDialog ((Frame) container, HELP_MESSAGE);
          d.pack ();
          d.setLocationRelativeTo (null);
          d.setVisible (true);
