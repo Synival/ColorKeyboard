@@ -3,10 +3,16 @@ import java.awt.*;
 import java.awt.event.*;
 import java.applet.Applet;
 
+// This creates a crude but effective dialog informing the user how to
+// resolve permissions errors.
+
+// TODO: this is a rather old warning and may no longer be applicable.
+//       probably should rewrite this entirely.
 public class HelpDialog extends JDialog
 {
    public HelpDialog (Frame parent, String text)
    {
+      // Initialize our dialog.
       super (parent, "Help Me!", true);
       setLayout (new FlowLayout());
       setResizable (false);
@@ -23,6 +29,6 @@ public class HelpDialog extends JDialog
          JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
       // Add our scrollable text to the window.
-      this.add (scroll);
+      add (scroll);
    }
 }

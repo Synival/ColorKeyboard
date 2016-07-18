@@ -380,6 +380,7 @@ public class Piano extends JComponent
             break;
 
          case MouseEvent.MOUSE_PRESSED:
+            this.requestFocusInWindow ();
             for (int i = 0; i < keys; i++) {
                if (keyTable[i].mouseInBounds (event.getX(), event.getY())) {
                   setMouseDown (i + lowestNote);

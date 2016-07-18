@@ -211,7 +211,7 @@ public class PianoPanel extends JPanel implements ActionListener
          add (piano);
 
          // Assign our keymap and visualizer to the piano.
-         keymap.usePreset (Keymap.STANDARD);
+         keymap.usePreset (Keymap.KEY_LAYOUT_STANDARD);
          piano.assignKeymap (keymap);
          piano.assignVisual (visual);
 
@@ -268,7 +268,7 @@ public class PianoPanel extends JPanel implements ActionListener
             transpositionText.setText ("21");
             piano.setLayout (layoutText.getText(), 88,
                Integer.parseInt (transpositionText.getText()));
-            keymap.usePreset (Keymap.STANDARD);
+            keymap.usePreset (Keymap.KEY_LAYOUT_STANDARD);
          }
          catch (PianoException e) {
             System.out.println (e);
@@ -281,7 +281,7 @@ public class PianoPanel extends JPanel implements ActionListener
             transpositionText.setText ("21");
             piano.setLayout (layoutText.getText(), 88,
                Integer.parseInt (transpositionText.getText()));
-            keymap.usePreset (Keymap.WHOLETONE);
+            keymap.usePreset (Keymap.KEY_LAYOUT_WHOLETONE);
          }
          catch (PianoException e) {
             System.out.println (e);
