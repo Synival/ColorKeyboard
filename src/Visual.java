@@ -3,6 +3,8 @@ import java.util.*;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 
 public class Visual extends JPanel
 {
@@ -12,34 +14,50 @@ public class Visual extends JPanel
    private int width;
    private int height;
 
-   private float[]      polyOn = new float[256];
-   private VisualPoly[] poly = new VisualPoly[256];
+   private float[]      polyOn  = new float[Piano.TONE_RANGE];
+   private float[]      polyDir = new float[Piano.TONE_RANGE];
+   private VisualPoly[] poly = new VisualPoly[Piano.TONE_RANGE];
    private VisualPoly   mainPoly;
 
    private boolean rebuild = false;
 
-   public void run () {
-      for (int i = 0; i < 256; i++)
-         if (polyOn[i] > 0 && polyOn[i] < 1) {
-            float drop = (float) i / 256f;
-            polyOn[i] -= drop * Math.sqrt (drop);
-         }
+   public void run (float t)
+   {
+      int count = 0;
 
-      if (rebuild)
-         rebuildMainPoly ();
+      // Update polygon intensities.
+      for (int i = 0; i < Piano.TONE_RANGE; i++) {
+         // Skip polygons that don't exist.
+         if (poly[i] == null)
+            continue;
 
-      for (int i = 0; i < 256; i++)
-         if (polyOn[i] > 0) {
-            poly[i].polyMove ();
+         // Modify intensity based on tone (higher patch = faster).
+         float speed = (float) Math.pow (2.00, (double) (i - 32) / 64.00);
+         polyOn[i] += polyDir[i] * t * speed;
 
-            if  (polyOn[i] == 0) {
-               rebuild = true;
-               poly[i] = null;
+         // If we were increasing intensity, drop once we hit the peak.
+         if (polyDir[i] > 0.00f) {
+            if (polyOn[i] >= 1.00f) {
+               polyOn[i] = 1.00f;
+               polyDir[i] = -0.125f;
             }
          }
+         // If we were decreasing intensity, delete polygons that hit zero.
+         else if (polyDir[i] < 0.00f && polyOn[i] <= 0.00f) {
+            poly[i] = null;
+            continue;
+         }
 
-      mainPoly.polyMove ();
+         // Move polygons that are active.
+         poly[i].polyMove ();
+         count++;
+      }
 
+      // Update the main polygon if there are other polygons to draw.
+      if (count > 0) {
+         rebuildMainPoly ();
+         mainPoly.polyMove ();
+      }
       repaint ();
    }
 
@@ -62,12 +80,11 @@ public class Visual extends JPanel
    public void paintComponent (Graphics g)
    {
       super.paintComponent (g);
-      setBackground (averageColor().darker().darker());
+      setBackground (averageColor().darker());
 
-      for (int i = 0; i < 256; i++)
+      for (int i = 0; i < Piano.TONE_RANGE; i++)
          if (polyOn[i] > 0)
             poly[i].paintComponent (g);
-
       mainPoly.paintComponent (g);
    }
 
@@ -91,46 +108,43 @@ public class Visual extends JPanel
       int hue = note;
       if (hue % 2 == 1)
          hue += 6;
-
       hue %= 12;
-
       return (float) hue / 12f;
    }
 
    public void noteOn (int note)
    {
       Color color = Color.getHSBColor (noteToHue(note), 1f, 0.4f);
-
       poly[note] = new VisualPoly (this, color);
-      polyOn[note] = 1f;
+      polyDir[note] = 30.00f;
+      if (polyOn[note] < 0.00f)
+         polyOn[note] = 0.00f;
    }
 
    public void noteOff (int note)
    {
-      polyOn[note] = 0.99f;
+      polyDir[note] = -2.00f;
    }
 
    public void allNotesOff ()
    {
-      for (int i = 0; i < 256; i++)
-         if (polyOn[i] == 1f)
-            polyOn[i] = 0.99f;
+      for (int i = 0; i < Piano.TONE_RANGE; i++)
+         polyDir[i] = -2.00f;
    }
 
    public void rebuildMainPoly ()
    {
-      mainPoly.setColor (averageColor());
+      mainPoly.setColor (averageColor().brighter());
    }
 
    public Color averageColor ()
    {
-      float t, r, b = 0;
-      float x = 0, y = 0;
-
+      float t, r, b = 0f, extra = 0f;
+      float x = 0f, y = 0f;
       float polys = 0f;
       Color color;
 
-      for (int i = 0; i < 256; i++)
+      for (int i = 0; i < Piano.TONE_RANGE; i++)
          if (polyOn[i] > 0) {
             float[] hsb = new float[3];
 
@@ -145,20 +159,23 @@ public class Visual extends JPanel
             polys += polyOn[i];
          }
 
+      // If the intensity is greater than 1, scale up to 1.00 logarithmically.
       if (b > 1f)
-         b = 1f;
+         b = (((b * 2f) - 1f) / (b * 2f));
+      else
+         b /= 2f;
 
       if (polys > 0) {
          x /= (float) polys;
          y /= (float) polys;
 
-         t = (float) (Math.atan2 (y, x) / Math.PI / 2f) % 1.0f;
+         t = (float) (Math.atan2 (y, x) / Math.PI / 2f);
          r = (float) (Math.sqrt (x * x + y * y));
 
          if (t > -0.01f && t < 0.01f)
             t = 0;
 
-         return (Color.getHSBColor (t, r, (float) b));
+         return Color.getHSBColor (t, r, (float) b);
       }
       else {
          return Color.black;

@@ -18,8 +18,12 @@ public class Keymap implements Serializable
    public static final int KEY_ALL_NOTES_OFF         = -13;
 
    // Key layout constants.
-   public static final int KEY_LAYOUT_STANDARD  = 0;
-   public static final int KEY_LAYOUT_WHOLETONE = 1;
+   public static final int    KEY_LAYOUT_STANDARD        = 0;
+   public static final int    KEY_LAYOUT_STANDARD_LOW    = 21;
+   public static final String KEY_LAYOUT_STANDARD_ORDER  = "121121211212";
+   public static final int    KEY_LAYOUT_WHOLETONE       = 1;
+   public static final int    KEY_LAYOUT_WHOLETONE_LOW   = 21;
+   public static final String KEY_LAYOUT_WHOLETONE_ORDER = "12";
 
    // Table of keys pressed and their values.
    private int[] keyTable;
@@ -27,7 +31,7 @@ public class Keymap implements Serializable
    public Keymap ()
    {
       // Initialize key table.
-      keyTable = new int[256];
+      keyTable = new int[Piano.TONE_RANGE];
       clear ();
    }
 
@@ -58,7 +62,7 @@ public class Keymap implements Serializable
 
    public void clear ()
    {
-      for (int i = 0; i < 256; i++)
+      for (int i = 0; i < Piano.TONE_RANGE; i++)
          keyTable[i] = KEY_UNASSIGNED;
    }
 

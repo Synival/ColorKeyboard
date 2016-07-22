@@ -16,14 +16,14 @@ public class Piano extends JComponent
 
    // Other default options.
    static public final int DEFAULT_KEYS       = 88;
-   static public final int DEFAULT_LOWEST_KEY = 21;
    static public final int DEFAULT_TRANSPOSE  = 36;
 
    // Internal values and flags.
    static public final int MOUSE_RELEASED = -1;
-   static public final int MASK_MOUSE    = 1 << 0;
-   static public final int MASK_KEYBOARD = 1 << 1;
-   static public final int MASK_PLAYBACK = 1 << 2;
+   static public final int MASK_MOUSE     = 1 << 0;
+   static public final int MASK_KEYBOARD  = 1 << 1;
+   static public final int MASK_PLAYBACK  = 1 << 2;
+   static public final int TONE_RANGE     = 256;
 
    // MIDI information.
    private int channel;
@@ -43,97 +43,139 @@ public class Piano extends JComponent
    private Key[] keyTable;
 
    // Computer keyboard mappings.
-   private Keymap keymap;
-   private boolean keymapAssigned = false;
+   private Keymap keymap = null;
 
-   private Visual visual;
-   private boolean visualAssigned = false;
+   // Visualization data.
+   private Visual visual = null;
 
+   // Keypress data.
    private int mouseDown = MOUSE_RELEASED;
    private int[] keyMask;
 
+   // Key draw information.
    private int highWidth, highHeight, highOffset;
-   private int lowWidth, lowHeight;
+   private int lowWidth,  lowHeight;
 
-   private java.util.Timer timer = new java.util.Timer ();
-
+   // MIDI playback data.
    private Sequence sequence;
    private Track[] tracks;
    private int[] trackEvent;
 
-   private boolean[] pedalList = new boolean[256];
+   // MIDI pedal information (per tone).
+   private boolean[] pedalList = new boolean[TONE_RANGE];
 
+   // Update timer.
+   private java.util.Timer timer;
+
+   // Task run on every Update tick;
    private class UpdateTask extends TimerTask
    {
+      private java.util.Timer timer;
+      private float interval;
+
+      // Basic initializer that takes information passed to
+      //    Timer.scheduleAtFixedRate().
+      public UpdateTask (java.util.Timer timer, float interval)
+      {
+         this.timer    = timer;
+         this.interval = interval;
+      }
+
       public void run ()
       {
+         // Is MIDI playback active?
          long curPos = sequencer.getTickPosition();
          if (sequencer.isRunning() && sequence != null) {
+            // Check every track for events.
             for (int i = 0; i < tracks.length; i++) {
-               for (int j = trackEvent[i]; j < tracks[i].size(); j++) {
+               // Look at active event, starting at where we left off the
+               // last time this loop was executed.
+               int j;
+               for (j = trackEvent[i]; j < tracks[i].size(); j++) {
+                  // If the event isn't happening yet, break.
                   MidiEvent event = tracks[i].get(j);
-                  MidiMessage message = event.getMessage();
-
                   if (event.getTick() > curPos)
                      break;
 
-                  if (message instanceof ShortMessage) {
-                     ShortMessage sm = (ShortMessage) message;
+                  // Is this an event we can use?
+                  MidiMessage message = event.getMessage();
+                  if (!(message instanceof ShortMessage))
+                     continue;
+                  ShortMessage sm = (ShortMessage) message;
 
-                     switch (sm.getCommand()) {
-                        case ShortMessage.NOTE_ON:
-                           if (sm.getData2() == 0)
-                              noteOff (sm.getData1(), MASK_PLAYBACK, false);
-                           else
-                              noteOn (sm.getData1(), MASK_PLAYBACK, false);
-
-                           break;
-                        case ShortMessage.NOTE_OFF:
+                  // It is - what kind of event is it?
+                  switch (sm.getCommand()) {
+                     // Turn notes on.
+                     case ShortMessage.NOTE_ON:
+                        if (sm.getData2() == 0)
                            noteOff (sm.getData1(), MASK_PLAYBACK, false);
-                           break;
-                        case ShortMessage.CONTROL_CHANGE:
-                           if (sm.getData1() == 0x40 && sm.getData2() == 0x7f)
-                              pedalOn ();
-                           else
-                              pedalOff ();
-                           break;
-                     }
+                        else
+                           noteOn (sm.getData1(), MASK_PLAYBACK, false);
+                        break;
+
+                     // Turn notes off.
+                     case ShortMessage.NOTE_OFF:
+                        noteOff (sm.getData1(), MASK_PLAYBACK, false);
+                        break;
+
+                     // Toggle controller changes.
+                     case ShortMessage.CONTROL_CHANGE:
+                        switch (sm.getData1 ()) {
+                           // Pedal on/off.
+                           case 0x40:
+                              if (sm.getData2() >= 0x80)
+                                 pedalOn ();
+                              else
+                                 pedalOff ();
+                              break;
+                           // TODO: more controllers.
+                        }
+                        break;
                   }
-                  trackEvent[i] = j + 1;
                }
+
+               // Record that we should look at the next event
+               // in this track the next time we run this loop.
+               trackEvent[i] = j;
             }
          }
-         if (visualAssigned) {
+
+         // Update the visualizer.
+         if (visual != null) {
             visual.rebuildMainPoly ();
-            visual.run ();
+            visual.run (interval);
          }
       }
    }
 
    public Piano () throws InvalidKeyLayoutException
    {
-      this ("121121211212");
+      // Use the "Standard" layout by default.  This looks like a real piano.
+      this (Keymap.KEY_LAYOUT_STANDARD_ORDER, Keymap.KEY_LAYOUT_STANDARD_LOW);
    }
 
-   public Piano (String keyLayout) throws InvalidKeyLayoutException
+   public Piano (String keyLayout, int lowestNote)
+      throws InvalidKeyLayoutException
    {
-      this (keyLayout, DEFAULT_KEYS, DEFAULT_LOWEST_KEY);
+      // Use 88 keys.
+      this (DEFAULT_KEYS, keyLayout, lowestNote);
    }
 
-   public Piano (String keyLayout, int keys, int lowestNote)
+   public Piano (int keys, String keyLayout, int lowestNote)
                 throws InvalidKeyLayoutException
    {
+      // Default render specifications.
       highWidth  = DEFAULT_HIGH_WIDTH;
       highHeight = DEFAULT_HIGH_HEIGHT;
       highOffset = DEFAULT_HIGH_OFFSET;
       lowWidth   = DEFAULT_LOW_WIDTH;
       lowHeight  = DEFAULT_LOW_HEIGHT;
 
+      // Turn on our MIDI device.
       try {
          synth = MidiSystem.getSynthesizer ();
          synth.open ();
          mc = synth.getChannels ();
-
          sequencer = MidiSystem.getSequencer ();
          sequencer.open ();
       }
@@ -141,29 +183,39 @@ public class Piano extends JComponent
          System.out.println (e);
       }
 
+      // Use channel 0, instrument 0 (piano).
       setMidi (0, 0);
-      setLayout (keyLayout, keys, lowestNote);
 
-      timer.scheduleAtFixedRate (new UpdateTask(), 0, 25);
+      // Activate the layout we specified.
+      setLayout (keys, keyLayout, lowestNote);
+
+      // Check for updates and modify visualizer at 62.5fps.
+      timer = new java.util.Timer ();
+      timer.scheduleAtFixedRate (new UpdateTask (timer, 0.016f), 0, 16);
    }
 
    public void play (String file) {
+      // Turn playback notes off.
       allNotesOff (MASK_PLAYBACK);
 
+      // Attempt to play the file.
       try {
+         // Does the file exist?  If so, start streaming it.
          FileInputStream f = new FileInputStream (file);
          byte[] byteBuf = new byte[0x1 << 20];
          int bytesRead = f.read (byteBuf, 0, 0x1 << 20);
-
          ByteArrayInputStream stream = new ByteArrayInputStream
                                            (byteBuf, 0, bytesRead);
 
+         // Start the file.
          sequencer.setSequence (stream);
          sequencer.start ();
 
+         // Track our MIDI sequence and its tracks.
          sequence = sequencer.getSequence ();
-         tracks = sequence.getTracks ();
+         tracks   = sequence.getTracks ();
 
+         // Initialize our MIDI event tracker.  MIDI is tracked in UpdateTask.
          trackEvent = new int[tracks.length];
          for (int i = 0; i < tracks.length; i++)
             trackEvent[i] = 0;
@@ -175,8 +227,11 @@ public class Piano extends JComponent
 
    public void stop ()
    {
+      // Turn off our MIDI file and stop following it.
       sequencer.stop ();
       allNotesOff (MASK_PLAYBACK);
+      sequencer = null;
+      tracks    = null;
    }
 
    public void buildKeyTables ()
@@ -187,11 +242,10 @@ public class Piano extends JComponent
       Color color, onColor = new Color (0, 0, 0);
 
       keyTable = new Key[keys];
-      keyMask  = new int[256];
+      keyMask  = new int[TONE_RANGE];
 
       for (int i = 0; i < keys; i++) {
          key = nextKey;
-
          if (i == keys - 1)
             nextKey = '1';
          else
@@ -271,14 +325,14 @@ public class Piano extends JComponent
 
    protected void processKeyEvent (KeyEvent event)
    {
-      if (!keymapAssigned)
+      if (keymap == null)
          return;
 
       // Does our key correspond to a keyboard tone?
       int tone = keymap.getTone (event.getKeyCode());
       if (tone >= 0) {
          tone += transpose;
-         if (tone > 255 || tone < 0)
+         if (tone >= Piano.TONE_RANGE || tone < 0)
             return;
 
          // Turn keys on/off.
@@ -344,7 +398,7 @@ public class Piano extends JComponent
    { 
       pedal = true;
 
-      for (int key = 0; key < 256; key++)
+      for (int key = 0; key < TONE_RANGE; key++)
          if (keyMask[key] > 0)
             pedalList[key] = true;
    }
@@ -353,14 +407,14 @@ public class Piano extends JComponent
    {
       pedal = false;
 
-      if (visualAssigned)
+      if (visual != null)
          visual.allNotesOff ();
 
-      for (int key = 0; key < 256; key++) {
+      for (int key = 0; key < TONE_RANGE; key++) {
          if (pedalList[key] == true) {
             if (keyMask[key] == 0)
                mc[channel].noteOff (key, 600);
-            else if (visualAssigned)
+            else if (visual != null)
                visual.noteOn (key);
 
             pedalList[key] = false;
@@ -438,7 +492,7 @@ public class Piano extends JComponent
          if (sound)
             mc[channel].noteOn (key, 600);
 
-         if (visualAssigned)
+         if (visual != null)
             visual.noteOn (key);
 
          if (pedal)
@@ -460,7 +514,7 @@ public class Piano extends JComponent
          }
 
          if (!pedal) {
-            if (visualAssigned)
+            if (visual != null)
                visual.noteOff (key);
 
             if (sound)
@@ -473,7 +527,7 @@ public class Piano extends JComponent
    {
       pedalOff ();
 
-      for (int key = 0; key < 256; key++) {
+      for (int key = 0; key < TONE_RANGE; key++) {
          if ((keyMask[key] & mask) > 0) {
             try {
                keyTable[key - lowestNote].setPressed (false);
@@ -486,7 +540,7 @@ public class Piano extends JComponent
       }
    }
 
-   public void setLayout (String keyLayout, int keys, int lowestNote)
+   public void setLayout (int keys, String keyLayout, int lowestNote)
                           throws InvalidKeyLayoutException
    {
       // TODO: throw exceptions for # of keys and lowest note
@@ -527,13 +581,11 @@ public class Piano extends JComponent
    public void assignKeymap (Keymap keymap)
    {
       this.keymap = keymap;
-      keymapAssigned = true;
    }
 
    public void assignVisual (Visual visual)
    {
       this.visual = visual;
-      visualAssigned = true;
    }
 
    public void setMidi (int channel, int instrument)

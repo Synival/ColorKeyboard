@@ -34,8 +34,8 @@ public class PianoPanel extends JPanel implements ActionListener
    "directories.";
 
    // Piano layout buttons.
-   private JTextField layoutText        = new JTextField ("121121211212", 10);
-   private JTextField transpositionText = new JTextField ("21", 2);
+   private JTextField layoutText        = new JTextField (10);
+   private JTextField transpositionText = new JTextField (2);
    private JButton rebuildButton        = new JButton ("Rebuild Piano");
    private JButton standardButton       = new JButton ("Standard");
    private JButton wholetoneButton      = new JButton ("Wholetone");
@@ -204,10 +204,14 @@ public class PianoPanel extends JPanel implements ActionListener
 
       // Create the piano and print any errors directly to the console.
       try {
-         // Use the default layout text (121211212121),
+         // Use the default layout text (121121211212),
          // 88 keys, and whatever transposition is requested (default = 23).
-         piano = new Piano(layoutText.getText(), 88,
-                           Integer.parseInt (transpositionText.getText()));
+         layoutText.setText        (Keymap.KEY_LAYOUT_STANDARD_ORDER);
+         transpositionText.setText (Integer.toString (
+            Keymap.KEY_LAYOUT_STANDARD_LOW));
+
+         piano = new Piano (Piano.DEFAULT_KEYS, layoutText.getText(),
+                            Integer.parseInt (transpositionText.getText()));
          add (piano);
 
          // Assign our keymap and visualizer to the piano.
@@ -254,7 +258,7 @@ public class PianoPanel extends JPanel implements ActionListener
       // "Rebuild Piano" button changes the key layout.
       else if (source == rebuildButton) {
          try {
-            piano.setLayout (layoutText.getText(), 88,
+            piano.setLayout (Piano.DEFAULT_KEYS, layoutText.getText(),
                Integer.parseInt (transpositionText.getText()));
          }
          catch (PianoException e) {
@@ -264,9 +268,10 @@ public class PianoPanel extends JPanel implements ActionListener
       // "Standard" resets key layout to defaults.
       else if (source == standardButton) {
          try {
-            layoutText.setText ("121121211212");
-            transpositionText.setText ("21");
-            piano.setLayout (layoutText.getText(), 88,
+            layoutText.setText (Keymap.KEY_LAYOUT_STANDARD_ORDER);
+            transpositionText.setText (Integer.toString (
+               Keymap.KEY_LAYOUT_STANDARD_LOW));
+            piano.setLayout (Piano.DEFAULT_KEYS, layoutText.getText(),
                Integer.parseInt (transpositionText.getText()));
             keymap.usePreset (Keymap.KEY_LAYOUT_STANDARD);
          }
@@ -277,9 +282,10 @@ public class PianoPanel extends JPanel implements ActionListener
       // "Wholetone" uses a simple alternating "low, high" layout.
       else if (source == wholetoneButton) {
          try {
-            layoutText.setText ("12");
-            transpositionText.setText ("21");
-            piano.setLayout (layoutText.getText(), 88,
+            layoutText.setText (Keymap.KEY_LAYOUT_WHOLETONE_ORDER);
+            transpositionText.setText (Integer.toString (
+               Keymap.KEY_LAYOUT_WHOLETONE_LOW));
+            piano.setLayout (Piano.DEFAULT_KEYS, layoutText.getText(),
                Integer.parseInt (transpositionText.getText()));
             keymap.usePreset (Keymap.KEY_LAYOUT_WHOLETONE);
          }

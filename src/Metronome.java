@@ -87,7 +87,7 @@ class Metronome
    {
       // If there's a timer, get rid of it.
       if (timer != null) {
-         timer.cancel ();
+         timer.purge ();
          timer = null;
       }
    }
