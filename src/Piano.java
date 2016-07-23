@@ -14,6 +14,11 @@ public class Piano extends JComponent
    static public final int DEFAULT_HIGH_HEIGHT = 30;
    static public final int DEFAULT_HIGH_OFFSET = 9;
 
+   // Values for keyOff[].
+   static public final int KEY_OFF_WAITING  = 0x01;
+   static public final int KEY_OFF_SOUND    = 0x02;
+   static public final int KEY_OFF_EAT_ONE  = 0x04;
+
    // Other default options.
    static public final int DEFAULT_KEYS       = 88;
    static public final int DEFAULT_TRANSPOSE  = 36;
@@ -63,6 +68,7 @@ public class Piano extends JComponent
 
    // MIDI pedal information (per tone).
    private boolean[] pedalList = new boolean[TONE_RANGE];
+   private int[]     keyOff    = new int[TONE_RANGE];
 
    // Update timer.
    private java.util.Timer timer;
@@ -85,7 +91,7 @@ public class Piano extends JComponent
       {
          // Is MIDI playback active?
          long curPos = sequencer.getTickPosition();
-         if (sequencer.isRunning() && sequence != null) {
+         if (sequencer.isRunning() && sequence != null && tracks != null) {
             // Check every track for events.
             for (int i = 0; i < tracks.length; i++) {
                // Look at active event, starting at where we left off the
@@ -138,6 +144,35 @@ public class Piano extends JComponent
                // in this track the next time we run this loop.
                trackEvent[i] = j;
             }
+         }
+
+         // Turn keys off.
+         for (int key = 0; key < TONE_RANGE; key++) {
+            if (keyOff[key] == 0)
+               continue;
+            if ((keyOff[key] & KEY_OFF_EAT_ONE) != 0) {
+               keyOff[key] &= ~KEY_OFF_EAT_ONE;
+               continue;
+            }
+
+            // Redraw the key as 'off'.
+            try {
+               keyTable[key - lowestNote].setPressed (false);
+               keyTable[key - lowestNote].paintComponent (getGraphics());
+            } catch (Exception e) {
+               System.out.println (e);
+            }
+
+            // If the pedal is off, turn off the note.
+            if (!pedal) {
+               if (visual != null)
+                  visual.noteOff (key);
+               if ((keyOff[key] & KEY_OFF_SOUND) != 0)
+                  mc[channel].noteOff (key, 600);
+            }
+
+            // Remove 'turn key off' flags.
+            keyOff[key] = 0;
          }
 
          // Update the visualizer.
@@ -230,46 +265,59 @@ public class Piano extends JComponent
       // Turn off our MIDI file and stop following it.
       sequencer.stop ();
       allNotesOff (MASK_PLAYBACK);
-      sequencer = null;
-      tracks    = null;
+      sequence = null;
+      tracks   = null;
    }
 
    public void buildKeyTables ()
    {
-      int offset = 0;
+      // Start a new key table.
+      keyTable = new Key[keys];
+      keyMask  = new int[TONE_RANGE];
+
+      // Set up our state for generating keys.
+      int  offset  = 0;
       char nextKey = keyLayout.toCharArray()[0];
       char lastKey = '1', key;
       Color color, onColor = new Color (0, 0, 0);
 
-      keyTable = new Key[keys];
-      keyMask  = new int[TONE_RANGE];
-
+      // Create our keys, one by one.
       for (int i = 0; i < keys; i++) {
+         // Use whatever tier we've earlier determined comes next.
          key = nextKey;
+
+         // Determine what tier the next key will be.  If we're at the end,
+         // assume the next tier is lower so it draws nicely.
          if (i == keys - 1)
             nextKey = '1';
          else
             nextKey = keyLayout.toCharArray()[(i + 1) % keyLayout.length()];
 
+         // Determine key color.
          switch ((i + lowestNote) % 12) {
-            case 0:
-            case 2:
-            case 4:
-            case 5:
-            case 7:
-            case 9:
-            case 11:
+            // The C Major scale is always a 'white' key.
+            case 0:  // C
+            case 2:  // D
+            case 4:  // E
+            case 5:  // F
+            case 7:  // G
+            case 9:  // A
+            case 11: // B
                color = new Color (239, 239, 239);
                break;
    
+            // Everything else is a 'black' key.
             default:
                color = new Color (64, 64, 64);
          }
 
+         // Is this a low or high tier key?
          switch (key) {
+            // Lower tier.
             case '1':
+               // Cut the top parts of the key depending on adjacent
+               // higher-tier keys.
                int topOffset = 0, topWidth = lowWidth;
-
                if (lastKey == '2') {
                   topOffset += (highWidth + highOffset - lowWidth);
                   topWidth = lowWidth - topOffset;
@@ -277,11 +325,13 @@ public class Piano extends JComponent
                if (nextKey == '2')
                   topWidth -= (lowWidth - highOffset);
 
+               // Make the key.
                keyTable[i] = new Key (offset * lowWidth, 0, topOffset,
                              topWidth, highHeight, lowWidth, lowHeight,
                              color, onColor);
                break;
 
+            // Higher tier.
             case '2':
                keyTable[i] = new Key (offset * lowWidth + highOffset, 0,
                              0, highWidth, highHeight, lowWidth, 0, color,
@@ -289,14 +339,18 @@ public class Piano extends JComponent
                break;
          }
 
-         lastKey = key;
+         // If this is a lower-tier key, move forward.
          if (nextKey == '1')
             offset++;
+
+         // Remember what key this was.
+         lastKey = key;
       }
    }
 
    public void paint (Graphics g)
    {
+      // Draw each key individually.
       for (int i = 0; i < keys; i++)
          keyTable[i].paintComponent (g);
    }
@@ -308,9 +362,9 @@ public class Piano extends JComponent
    public int getWidth ()
    {
       int width = lowWidth;
-
       char[] layout = keyLayout.toCharArray();
 
+      // Add the width of all lower-tiered keys.
       for (int i = 0; i < keys; i++)
          if (layout[(i + lowestNote) % keyLayout.length()] == '1')
             width += lowWidth;
@@ -396,8 +450,8 @@ public class Piano extends JComponent
 
    public void pedalOn ()
    { 
+      // Turn the pedal on for every key.
       pedal = true;
-
       for (int key = 0; key < TONE_RANGE; key++)
          if (keyMask[key] > 0)
             pedalList[key] = true;
@@ -405,18 +459,15 @@ public class Piano extends JComponent
 
    public void pedalOff ()
    {
+      // Turn the pedal off for every key.
       pedal = false;
-
-      if (visual != null)
-         visual.allNotesOff ();
-
       for (int key = 0; key < TONE_RANGE; key++) {
          if (pedalList[key] == true) {
-            if (keyMask[key] == 0)
+            // Turn MIDI/visualizer notes off.
+            if (keyMask[key] == 0) {
                mc[channel].noteOff (key, 600);
-            else if (visual != null)
-               visual.noteOn (key);
-
+               visual.noteOff (key);
+            }
             pedalList[key] = false;
          }
       }
@@ -425,14 +476,7 @@ public class Piano extends JComponent
    protected void processMouseEvent (MouseEvent event)
    {
       switch (event.getID()) {
-         case MouseEvent.MOUSE_ENTERED:
-            break;
-
-         case MouseEvent.MOUSE_RELEASED:
-         case MouseEvent.MOUSE_EXITED:
-            setMouseDown (MOUSE_RELEASED);
-            break;
-
+         // Turn notes on.
          case MouseEvent.MOUSE_PRESSED:
             this.requestFocusInWindow ();
             for (int i = 0; i < keys; i++) {
@@ -442,102 +486,124 @@ public class Piano extends JComponent
                }
             }
             break;
+
+         // Turn notes off.
+         case MouseEvent.MOUSE_RELEASED:
+         case MouseEvent.MOUSE_EXITED:
+            setMouseDown (MOUSE_RELEASED);
+            break;
       }
    }
 
    protected void processMouseMotionEvent (MouseEvent event)
    {
+      // We moved the mouse; what key are we under now?
+      int x = event.getX(), y = event.getY();
       if (mouseDown != MOUSE_RELEASED) {
          for (int i = 0; i < keys; i++) {
-            if (keyTable[i].mouseInBounds (event.getX(), event.getY())) {
+            if (keyTable[i].mouseInBounds (x, y)) {
                setMouseDown (i + lowestNote);
                return;
             }
          }
       }
+
+      // We're not under anything - turn the key off.
       setMouseDown (MOUSE_RELEASED);
    }
 
    private void setMouseDown (int key)
    {
+      // Don't do anything if the key we want is already down.
       if (key == mouseDown)
          return;
 
+      // Are we turning a key off?
       if (mouseDown != MOUSE_RELEASED)
          noteOff (mouseDown, MASK_MOUSE);
+
+      // Are we turning a key on?
       if (key != MOUSE_RELEASED)
          noteOn (key, MASK_MOUSE);
 
+      // Record the key.
       mouseDown = key;
    }
 
    void noteOn (int key, int mask)
    {
+      // Play a sound.
       noteOn (key, mask, true);
    }
 
    void noteOff (int key, int mask)
    {
+      // Turn a sound off.
       noteOff (key, mask, true);
    }
 
    void noteOn (int key, int mask, boolean sound)
    {
-      if (keyMask[key] == 0) {
+      // Don't bother if it's already on.
+      if ((keyMask[key] & mask) == mask)
+         return;
+
+      // If the key is waiting to be turned off, it's already on.  Ignore
+      // the next block of code and remove the 'turn off' flag.
+      if (keyOff[key] != 0)
+         keyOff[key] = 0;
+      // If this is the first event to turn a key on, play a sound and
+      // turn on the visualizer.
+      else if (keyMask[key] == 0) {
+         // Redraw the key as 'on'.
          try {
             keyTable[key - lowestNote].setPressed (true);
             keyTable[key - lowestNote].paintComponent (getGraphics());
          } catch (Exception e) { }
 
+         // Play a sound.
          if (sound)
             mc[channel].noteOn (key, 600);
 
+         // Turn on visualizer.
          if (visual != null)
             visual.noteOn (key);
 
+         // Is the pedal on?  This key should persist.
          if (pedal)
             pedalList[key] = true;
       }
+
+      // Mark the key on as key type 'mask'.
       keyMask[key] |= mask;
    }
 
    void noteOff (int key, int mask, boolean sound)
    {
+      // Don't bother if it's already off.
+      if ((keyMask[key] & mask) == 0)
+         return;
+
+      // Unmark the key as key type 'mask'.
       keyMask[key] &= ~mask;
 
+      // If we're turning the key off, let the timer do it.
       if (keyMask[key] == 0) {
-         try {
-            keyTable[key - lowestNote].setPressed (false);
-            keyTable[key - lowestNote].paintComponent (getGraphics());
-         } catch (Exception e) {
-            System.out.println (e);
-         }
-
-         if (!pedal) {
-            if (visual != null)
-               visual.noteOff (key);
-
-            if (sound)
-               mc[channel].noteOff (key, 600);
-         }
+         keyOff[key] = KEY_OFF_WAITING | KEY_OFF_EAT_ONE;
+         if (sound)
+            keyOff[key] |= KEY_OFF_SOUND;
       }
    }
 
    void allNotesOff (int mask)
    {
+      // Be safe; no pedal.
       pedalOff ();
 
-      for (int key = 0; key < TONE_RANGE; key++) {
-         if ((keyMask[key] & mask) > 0) {
-            try {
-               keyTable[key - lowestNote].setPressed (false);
-               keyTable[key - lowestNote].paintComponent (getGraphics());
-            } catch (Exception e) {
-               System.out.println (e);
-            }
+      // Turn notes off.
+      for (int key = 0; key < TONE_RANGE; key++)
+         if ((keyMask[key] & mask) > 0)
             noteOff (key, mask);
-         }
-      }
    }
 
    public void setLayout (int keys, String keyLayout, int lowestNote)
@@ -590,12 +656,13 @@ public class Piano extends JComponent
 
    public void setMidi (int channel, int instrument)
    {
-      this.channel = channel;
+      // Remember our channel and instrument.
+      this.channel    = channel;
       this.instrument = instrument;
 
+      // Use the instrument requested.
       try {
          mc[channel].programChange (instrument);
-         //synth.loadInstrument (instr[this.instrument]);
       }
       catch (Exception e) {
          System.out.println (e);
@@ -620,12 +687,12 @@ public class Piano extends JComponent
             case '1':
             case '2':
                break;
-
             default:
                return false;
          }
       }
 
+      // Looks like it works.
       return true;
    }
 
@@ -636,6 +703,7 @@ public class Piano extends JComponent
 
    public void ProcessFocusEvent (FocusEvent e)
    {
+      // Turn off keyboard and mouse events if we lose focus.
       if (e.getID() == FocusEvent.FOCUS_LOST)
          allNotesOff (MASK_MOUSE | MASK_KEYBOARD);
    }

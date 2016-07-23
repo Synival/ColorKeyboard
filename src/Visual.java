@@ -3,23 +3,23 @@ import java.util.*;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 
 public class Visual extends JPanel
 {
-   public static final int DEFAULT_WIDTH = 100;
+   // Static definitions.
+   public static final int DEFAULT_WIDTH  = 100;
    public static final int DEFAULT_HEIGHT = 100;
 
+   // Internal variables.
    private int width;
    private int height;
 
+   // Polygon tracking.
    private float[]      polyOn  = new float[Piano.TONE_RANGE];
    private float[]      polyDir = new float[Piano.TONE_RANGE];
    private VisualPoly[] poly = new VisualPoly[Piano.TONE_RANGE];
    private VisualPoly   mainPoly;
-
-   private boolean rebuild = false;
 
    public void run (float t)
    {
@@ -49,6 +49,7 @@ public class Visual extends JPanel
          }
 
          // Move polygons that are active.
+         poly[i].setBrightness (polyOn[i]);
          poly[i].polyMove ();
          count++;
       }
@@ -68,20 +69,26 @@ public class Visual extends JPanel
 
    public Visual (int width, int height)
    {
+      // Set internal variables.
       this.width = width;
       this.height = height;
 
-      mainPoly = new VisualPoly (this, Color.black);
+      // Initialze our component's size and background.
       setSize (getPreferredSize ());
       setOpaque (true);
       setBackground (Color.BLACK);
+
+      // We always have a single, main polygon to represent all keys.
+      mainPoly = new VisualPoly (this, Color.black);
    }
 
    public void paintComponent (Graphics g)
    {
+      // Set background.
       super.paintComponent (g);
       setBackground (averageColor().darker());
 
+      // Draw all polygons.
       for (int i = 0; i < Piano.TONE_RANGE; i++)
          if (polyOn[i] > 0)
             poly[i].paintComponent (g);
@@ -105,6 +112,7 @@ public class Visual extends JPanel
 
    public float noteToHue (int note)
    {
+      // Translate note to a hue clamped from (0 .. < 1)
       int hue = note;
       if (hue % 2 == 1)
          hue += 6;
@@ -114,26 +122,31 @@ public class Visual extends JPanel
 
    public void noteOn (int note)
    {
+      // Create a new polygon with the appropriate color.
       Color color = Color.getHSBColor (noteToHue(note), 1f, 0.4f);
       poly[note] = new VisualPoly (this, color);
-      polyDir[note] = 30.00f;
+
+      // Fade in rapidly from (at least) 0% opacity.
+      polyDir[note] = 15.00f;
       if (polyOn[note] < 0.00f)
          polyOn[note] = 0.00f;
    }
 
    public void noteOff (int note)
    {
+      // Gradually fade out.
       polyDir[note] = -2.00f;
    }
 
    public void allNotesOff ()
    {
       for (int i = 0; i < Piano.TONE_RANGE; i++)
-         polyDir[i] = -2.00f;
+         noteOff (i);
    }
 
    public void rebuildMainPoly ()
    {
+      // Use a color brighter than our background and other polygons.
       mainPoly.setColor (averageColor().brighter());
    }
 
@@ -141,23 +154,37 @@ public class Visual extends JPanel
    {
       float t, r, b = 0f, extra = 0f;
       float x = 0f, y = 0f;
-      float polys = 0f;
       Color color;
 
-      for (int i = 0; i < Piano.TONE_RANGE; i++)
-         if (polyOn[i] > 0) {
-            float[] hsb = new float[3];
+      // Determine (x, y) position on a color wheel using all polygons.
+      for (int i = 0; i < Piano.TONE_RANGE; i++) {
+         if (polyOn[i] <= 0.00)
+            continue;
 
-            color = poly[i].getColor ();
-            Color.RGBtoHSB (color.getRed(), color.getGreen(),
-                            color.getBlue(), hsb);
+         // Get polygon color and convert it to HSB.
+         float[] hsb = new float[3];
+         color = poly[i].getColor ();
+         Color.RGBtoHSB (color.getRed(), color.getGreen(),
+                         color.getBlue(), hsb);
 
-            x += Math.cos (hsb[0] * Math.PI * 2f) * (float) polyOn[i];
-            y += Math.sin (hsb[0] * Math.PI * 2f) * (float) polyOn[i];
+         // Convert HSB to XYB and move our color wheel.
+         x += Math.cos (hsb[0] * Math.PI * 2f) * (float) polyOn[i];
+         y += Math.sin (hsb[0] * Math.PI * 2f) * (float) polyOn[i];
+         b += polyOn[i];
+      }
+      if (b <= 0.00)
+         return Color.black;
 
-            b += polyOn[i];
-            polys += polyOn[i];
-         }
+      // Divide (x, y) by magnitude.
+      x /= b;
+      y /= b;
+
+      // t(theta) = hue,
+      // r        = radius.
+      t = (float) (Math.atan2 (y, x) / Math.PI / 2f);
+      if (t > -0.01f && t < 0.01f)
+         t = 0;
+      r = (float) (Math.sqrt (x * x + y * y));
 
       // If the intensity is greater than 1, scale up to 1.00 logarithmically.
       if (b > 1f)
@@ -165,105 +192,7 @@ public class Visual extends JPanel
       else
          b /= 2f;
 
-      if (polys > 0) {
-         x /= (float) polys;
-         y /= (float) polys;
-
-         t = (float) (Math.atan2 (y, x) / Math.PI / 2f);
-         r = (float) (Math.sqrt (x * x + y * y));
-
-         if (t > -0.01f && t < 0.01f)
-            t = 0;
-
-         return Color.getHSBColor (t, r, (float) b);
-      }
-      else {
-         return Color.black;
-      }
-   }
-}
-
-class VisualPoly
-{
-   int points = (int) (Math.random() * 6) + 3;
-   float sat;
-
-   double[] xCoord, yCoord;
-   double[] xVel, yVel;
-
-   double width  = (float) Visual.DEFAULT_WIDTH;
-   double height = (float) Visual.DEFAULT_HEIGHT;
-
-   Color color;
-
-   void polyMove ()
-   {
-      for (int i = 0; i < points; i++) {
-         xCoord[i] += xVel[i] * sat;
-         yCoord[i] += yVel[i] * sat;
-
-         if (xCoord[i] < 0f) {
-            xCoord[i] = -xCoord[i];
-            xVel[i] = -xVel[i];
-         }
-         else if (xCoord[i] >= width) {
-            xCoord[i] = (width * 2) - xCoord[i];
-            xVel[i] = -xVel[i];
-         }
-
-         if (yCoord[i] < 0f) {
-            yCoord[i] = -yCoord[i];
-            yVel[i] = -yVel[i];
-         }
-         else if (yCoord[i] >= height) {
-            yCoord[i] = (height * 2) - yCoord[i];
-            yVel[i] = -yVel[i];
-         }
-      }
-   }
-
-   public VisualPoly (Visual v, Color color)
-   {
-      width  = v.getWidth();
-      height = v.getHeight();
-
-      setColor (color);
-
-      xCoord = new double[points];
-      yCoord = new double[points];
-      xVel   = new double[points];
-      yVel   = new double[points];
-
-      for (int i = 0; i < points; i++) {
-         xCoord[i] = Math.random() * width;
-         yCoord[i] = Math.random() * height;
-
-         xVel[i] = (Math.random() - 0.5f) * width / 20f;
-         yVel[i] = (Math.random() - 0.5f) * height / 20f;
-      }
-   }
-
-   public void paintComponent (Graphics g)
-   {
-      g.setColor (color);
-
-      for (int i = 0; i < points; i++)
-         g.drawLine ((int) xCoord[i], (int) yCoord[i],
-                     (int) xCoord[(i + 1) % points],
-                     (int) yCoord[(i + 1) % points]);
-   }
-
-   public Color getColor ()
-   {
-      return color;
-   }
-
-   public void setColor (Color color)
-   {
-      float[] hsb = new float[3];
-
-      this.color = color;
-      Color.RGBtoHSB (color.getRed(), color.getGreen(), color.getBlue(), hsb);
-      sat = hsb[2];
+      // We have our HSB value - return an RGB color.
+      return Color.getHSBColor (t, r, (float) b);
    }
 }

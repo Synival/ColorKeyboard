@@ -3,14 +3,18 @@ import javax.sound.midi.*;
 
 class Metronome
 {
+   // Metronome sound specification.
    private int channel;
    private int note;
    private int instrument;
 
+   // MIDI information.
    private Instrument[] instr;
    private MidiChannel[] mc;
-   private Timer timer = null;
    private Synthesizer synth;
+
+   // Keep track of our on/off state.
+   private Timer timer = null;
 
    class MetronomeTask extends TimerTask
    {
